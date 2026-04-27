@@ -8,7 +8,7 @@ from langchain.tools import tool
 from rag import initialize_vector_db, retrieve_invoice_context
 from tools import verify_invoice
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBTHhIPi2StwZLIQcK9Niq55VSyquPF5bI"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyA-3WCqC05nF9D6KQujhveJxnmRta7D_c8"
 
 # --- 1. Load Data ---
 @st.cache_resource
