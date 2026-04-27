@@ -5,7 +5,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 # 1. Configuration & API Setup
-os.environ["GOOGLE_API_KEY"] = "AIzaSyBTHhIPi2StwZLIQcK9Niq55VSyquPF5bI"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyA-3WCqC05nF9D6KQujhveJxnmRta7D_c8"
 
 def initialize_vector_db(invoice_data: list[str], collection_name="invoice_vault"):
     """
