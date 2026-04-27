@@ -1,0 +1,46 @@
+[
+  {
+    "invoice_id": "INV001",
+    "vendor": "Office Depot",
+    "date": "2026-03-01",
+    "items": [
+      {"name": "Printer Paper", "price": 25.00},
+      {"name": "Pens (Pack)", "price": 12.00}
+    ],
+    "tax": 3.70,
+    "total": 40.70
+  },
+  {
+    "invoice_id": "INV002",
+    "vendor": "Best Buy",
+    "date": "2026-03-05",
+    "items": [
+      {"name": "Keyboard", "price": 45.00},
+      {"name": "Mouse", "price": 20.00}
+    ],
+    "tax": 6.50,
+    "total": 70.00
+  },
+  {
+    "invoice_id": "INV003",
+    "vendor": "Amazon",
+    "date": "2026-03-10",
+    "items": [
+      {"name": "USB Cable", "price": 10.00},
+      {"name": "HDMI Cable", "price": 15.00}
+    ],
+    "tax": 2.50,
+    "total": 30.00
+  },
+  {
+    "invoice_id": "INV004",
+    "vendor": "Staples",
+    "date": "2026-03-12",
+    "items": [
+      {"name": "Notebook", "price": 8.00},
+      {"name": "Markers", "price": 6.00}
+    ],
+    "tax": 1.40,
+    "total": 20.00
+  }
+]
