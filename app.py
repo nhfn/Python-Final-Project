@@ -1,18 +1,72 @@
 import streamlit as st
 import os
 import json
-import re
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import create_agent
-from langchain.tools import tool
-from rag import initialize_vector_db, retrieve_invoice_context
-from tools import verify_invoice
+from rag import initialize_vector_db
+from new_llm import get_invoice_agent
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyA-3WCqC05nF9D6KQujhveJxnmRta7D_c8"
+# Setup API Key using Streamlit Secrets for cloud deployment
+if "GOOGLE_API_KEY" in st.secrets:
+    os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 
-# --- 1. Load Data ---
+# --- 1. UI Setup ---
+st.set_page_config(page_title="SNAP Auditor", page_icon="📊", layout="wide")
+
+st.markdown("""
+<style>
+    /* Dark Mode Premium Theme */
+    .stApp {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #f8fafc;
+        font-family: 'Inter', sans-serif;
+    }
+    .stChatInputContainer {
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    h1 {
+        background: -webkit-linear-gradient(45deg, #38bdf8, #818cf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .stChatMessage {
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+    }
+    .stSidebar {
+        background: rgba(15, 23, 42, 0.8) !important;
+        backdrop-filter: blur(15px);
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        background: linear-gradient(to right, #3b82f6, #8b5cf6);
+        color: white;
+        border: none;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("📊 Smart Invoice Analyzer")
+
+# --- 2. Load Data ---
 @st.cache_resource
 def load_database_from_file():
+    if not os.path.exists("invoices.json"):
+        return None
     with open("invoices.json", "r") as f:
         invoices = json.load(f)
     
@@ -26,37 +80,20 @@ def load_database_from_file():
 
 GLOBAL_VECTORSTORE = load_database_from_file()
 
-# --- 2. Failsafe Tools ---
-@tool
-def retrieve_invoice_data(query: str) -> str:
-    """Search the vector database for invoice details."""
-    return retrieve_invoice_context(query, GLOBAL_VECTORSTORE)
 
-@tool
-def verify_invoice_tool(input_data: str) -> str:
-    """Deterministic math verification. Fulfills Non-LLM tool requirement."""
-    try:
-        # 1. Clean the string (strips markdown if the AI added it)
-        clean_json = re.sub(r'```json|```', '', input_data).strip()
-        invoice_dict = json.loads(clean_json)
-        
-        # 2. FIX: If the LLM nested the data (e.g. {"INV002": {...}}), unwrap it
-        if "items" not in invoice_dict and len(invoice_dict) == 1:
-            first_key = list(invoice_dict.keys())[0]
-            invoice_dict = invoice_dict[first_key]
-            
-        # 3. Run deterministic logic
-        result = verify_invoice(invoice_dict)
-        return f"Status: {result['status']}"
-    except Exception as e:
-        return f"Tool Error: {str(e)}. Please try sending the raw JSON data."
-    
 
-# --- 3. UI & Persistence ---
-st.set_page_config(page_title="SNAP Auditor", page_icon="📊")
-st.title("📊 Smart Invoice Analyzer")
-
+# --- 4. Sidebar & Persistence ---
 DB_FILE = "chat_history.json"
+
+with st.sidebar:
+    st.header("⚙️ Settings")
+    st.write("Manage your AI Auditor")
+    if st.button("🗑️ Clear Chat History"):
+        st.session_state.messages = []
+        if os.path.exists(DB_FILE):
+            os.remove(DB_FILE)
+        st.rerun()
+
 if "messages" not in st.session_state:
     if os.path.exists(DB_FILE):
         try:
@@ -66,59 +103,43 @@ if "messages" not in st.session_state:
     else: st.session_state.messages = []
 
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]): st.markdown(msg["content"])
+    with st.chat_message(msg["role"]): 
+        st.markdown(msg["content"])
 
 # --- 4. Orchestration ---
-llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite-preview", temperature=0)
-agent_tools = [retrieve_invoice_data, verify_invoice_tool]
-
-agent = create_agent(
-    model=llm,
-    tools=agent_tools,
-    system_prompt=(
-        "You are a professional auditor. ALWAYS use retrieve_invoice_data first. "
-        "To check math, pass the EXACT JSON details to verify_invoice_tool."
-        "Always respond in plain text, as you are a chat bot, and cant output fancy outputs."
-    )
-)
-
-# --- 5. Chat Input & Agent Execution ---
-if user_prompt := st.chat_input("EX: Verify Best Buy INV002"):
+agent_executor = get_invoice_agent(GLOBAL_VECTORSTORE)
+# --- 6. Chat Input & Execution ---
+if user_prompt := st.chat_input("EX: Verify Best Buy INV002 or Find the highest invoice"):
     st.session_state.messages.append({"role": "user", "content": user_prompt})
     with st.chat_message("user"):
         st.markdown(user_prompt)
 
-with st.chat_message("assistant"):
+    with st.chat_message("assistant"):
         with st.spinner("Analyzing..."):
             try:
-                # Prepare history for the agent
-                formatted = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-                response = agent.invoke({"messages": formatted})
+                chat_history = []
+                for msg in st.session_state.messages:
+                    chat_history.append({"role": msg["role"], "content": msg["content"]})
+                
+                response = agent_executor.invoke({
+                    "messages": chat_history
+                })
                 
                 output_text = ""
-                
-                # Case 1: Standard LangChain dict with 'output'
-                if isinstance(response, dict) and "output" in response:
-                    output_text = response["output"]
-                # Case 2: Dict with 'messages' list
-                elif isinstance(response, dict) and "messages" in response:
+                if isinstance(response, dict) and "messages" in response and len(response["messages"]) > 0:
                     last_msg = response["messages"][-1]
-                    output_text = getattr(last_msg, 'content', str(last_msg))
-                # Case 3: Direct AIMessage or list of messages
-                elif isinstance(response, list) and len(response) > 0:
-                    last_item = response[-1]
-                    output_text = getattr(last_item, 'content', str(last_item))
-                # Case 4: Fallback
+                    raw_content = getattr(last_msg, "content", str(last_msg))
+                    
+                    if isinstance(raw_content, list):
+                        # Extract text from list of dicts
+                        text_parts = [part.get("text", "") for part in raw_content if isinstance(part, dict) and "text" in part]
+                        output_text = "".join(text_parts)
+                    elif isinstance(raw_content, str):
+                        output_text = raw_content
+                    else:
+                        output_text = str(raw_content)
                 else:
                     output_text = str(response)
-
-                # Final cleanup: If the output_text is still a list (Flash quirk)
-                if isinstance(output_text, list) and len(output_text) > 0:
-                    if isinstance(output_text[0], dict) and 'text' in output_text[0]:
-                        output_text = output_text[0]['text']
-                    else:
-                        output_text = str(output_text[0])
-
                 st.markdown(output_text)
                 st.session_state.messages.append({"role": "assistant", "content": output_text})
                 
@@ -126,4 +147,5 @@ with st.chat_message("assistant"):
                     json.dump(st.session_state.messages, f)
 
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error connecting to AI: {e}")
+
