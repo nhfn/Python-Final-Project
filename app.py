@@ -7,6 +7,11 @@ from new_llm import get_invoice_agent
 # Setup API Key using Streamlit Secrets for cloud deployment
 if "GOOGLE_API_KEY" in st.secrets:
     os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+    
+if "LANGCHAIN_API_KEY" in st.secrets:
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
+    os.environ["LANGCHAIN_PROJECT"] = st.secrets.get("LANGCHAIN_PROJECT", "SNAP_Auditor")
 
 # --- 1. UI Setup ---
 st.set_page_config(page_title="SNAP Auditor", page_icon="📊", layout="wide")
