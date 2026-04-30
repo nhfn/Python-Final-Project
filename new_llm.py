@@ -12,6 +12,11 @@ from rag import retrieve_invoice_context
 
 load_dotenv()
 
+# Enable LangSmith Tracing if API key is present
+if os.getenv("LANGCHAIN_API_KEY"):
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "SNAP_Auditor")
+
 MAX_REQUESTS_PER_MIN = 4
 DELAY = 60
 
